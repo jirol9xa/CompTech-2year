@@ -29,8 +29,6 @@ static int safeWrite(int out_descr, const char *buff, const size_t buff_size)
 {
   IS_VALID(buff);
 
-  PRINT_LINE;
-
   int wrtn = write(out_descr, buff, buff_size);
   if (wrtn < 0)
   {
@@ -39,11 +37,8 @@ static int safeWrite(int out_descr, const char *buff, const size_t buff_size)
   }
 
   while(wrtn != buff_size)
-  {
     wrtn += write(out_descr, buff + wrtn, buff_size - wrtn);
-    PRINT_LINE;
-    printf("wrtn = %d\n", wrtn);
-  }
+
   return 0;
 }
 
@@ -65,8 +60,6 @@ static int myCat(const int in_descr, const int out_descr)
 
   while (buff_size > 0)
   {
-    PRINT_LINE;
-
     buff_size = read(in_descr, buff, BUFF_SIZE);
    
     if (buff_size < 0)
@@ -76,8 +69,8 @@ static int myCat(const int in_descr, const int out_descr)
     }
     if (safeWrite(out_descr, buff, buff_size))
     {
-     printf("Can't write whole buff\n");
-     return -1;
+      printf("Can't write whole buff\n");
+      return -1;
     }
   }
 
@@ -126,7 +119,7 @@ int main(const int argc, char * const argv[])
     int in_descr  = open(argv[1 + amnt], O_ASYNC);
 
     int out_descr = open(argv[2 + amnt], O_TRUNC | O_WRONLY);
-    if (out_descr)
+    if (out_descr > 0)
     {
       if (opts.i)
       {
@@ -136,7 +129,7 @@ int main(const int argc, char * const argv[])
           return 0;
       }
     }
-    else
+    else  // for me -f flag and programm without -i flag are the same
       out_descr = open(argv[2 + amnt], O_CREAT | O_TRUNC | O_WRONLY, 0777);
 
     if (opts.v)
@@ -160,9 +153,10 @@ int main(const int argc, char * const argv[])
   {
     int in_descr  = open(argv[i], O_ASYNC);
 
-    strcat(out_name, argv[i]);
+    strcat(out_name, argv[i]);  // making name of out file
+
     int out_descr = open(out_name, O_TRUNC | O_WRONLY);
-    if (out_descr)
+    if (out_descr > 0)
     {
       if (opts.i)
       {
@@ -178,7 +172,7 @@ int main(const int argc, char * const argv[])
         eat_line();
       }
     }
-    else
+    else   // for me -f flag and programm without -i flag are the same
       out_descr = open(out_name, O_CREAT | O_TRUNC | O_WRONLY, 0777);
 
     if (opts.v)
