@@ -39,7 +39,7 @@ int main(const int argc, char *const argv[])
     while (wait(&status) != -1)
         continue;
 
-    if (!(WIFEXITED(status)))
+    if (!(WIFEXITED(status)) || WIFEXITED(status) && (status % 10))
     {
         printf("Error in execvp\n");
         return 0;
