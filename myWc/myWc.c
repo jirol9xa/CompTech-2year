@@ -9,6 +9,8 @@
 
 const int BUFF_SIZE = 4096;
 
+#define PRINT_LINE fprintf(stderr, "[%s:%d]\n", __func__, __LINE__);
+
 typedef struct Buffer
 {
     char buff[BUFF_SIZE];
@@ -58,25 +60,21 @@ int main(const int argc, char *const argv[])
             perror("Dup2 error");
             return -1;
         }
-        execvp(argv[1], (argv + 1));
-    }
-    else
-    {
-        if (dup2(fds[0], 0) == -1)
+        close(fds[1]);
+        close(fds[0]);
+        if (execvp(argv[1], (argv + 1)) == -1)
         {
-            perror("Dup2 error");
+            perror("Execvp error");
             return -1;
         }
     }
-
-    int status;
-    while (wait(&status) != -1)
-        continue;
+    else
+        close(fds[1]);
 
     if (pid != 0)
     {
         Buffer buffer;
-        if ((buffer.buff_size = read(0, buffer.buff, BUFF_SIZE)) < 0)
+        if ((buffer.buff_size = read(fds[0], buffer.buff, BUFF_SIZE)) < 0)
         {
             perror("Read error");
             return -1;
@@ -92,7 +90,9 @@ int main(const int argc, char *const argv[])
         printf("%d\t%d\t%d\n", str_amnt, wrd_amnt, buffer.buff_size);
     }
 
-
+    int status;
+    while (wait(&status) != -1)
+        continue;
 
     return 0;
 }
