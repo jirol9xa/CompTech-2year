@@ -54,8 +54,9 @@ int main(void)
         }
         else
         {
-            prev_out_fds = fds[0];
+            close(prev_out_fds);        
             close(fds[1]);
+            prev_out_fds = fds[0];
         }
     }
 
@@ -67,7 +68,6 @@ int main(void)
         {
             while (wait(&status) != -1)
                 continue;
-            close(prev_out_fds);
         }
         
         dtor(&vector);
