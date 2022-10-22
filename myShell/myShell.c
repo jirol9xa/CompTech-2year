@@ -54,10 +54,6 @@ int main(void)
         }
         else
         {
-            int status;
-            while(wait(&status) != -1)
-                continue;
-
             prev_out_fds = fds[0];
             close(fds[1]);
         }
@@ -66,9 +62,14 @@ int main(void)
     if (pid != 0)
     {
         int status;
-        while (wait(&status) != -1)
-            continue;
-        close(prev_out_fds);
+
+        for (int i = 0; i < vector.size; ++i)
+        {
+            while (wait(&status) != -1)
+                continue;
+            close(prev_out_fds);
+        }
+        
         dtor(&vector);
     }
     return 0;
