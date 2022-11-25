@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <exception>
+#include <iostream>
 
 const int BUFF_SIZE = 4096;
 
@@ -87,38 +88,77 @@ public:
 
 static int safeWrite(int out_descr, const char *buff, const size_t buff_size)
 {
-    IS_VALID(buff);
+  PRINT_LINE;
 
-    int wrtn = 0;
+  IS_VALID(buff);
 
-    while(wrtn != buff_size)
-        wrtn += write(out_descr, buff + wrtn, buff_size - wrtn);
+  int wrtn = 0;
 
-    return 0;
+  while(wrtn != buff_size)
+    wrtn += write(out_descr, buff + wrtn, buff_size - wrtn);
+
+  return 0;
 }
 
 void read(char *buff, int in_descr)
 {
-  int buff_size = read(in_descr, buff, BUFF_SIZE);
+  PRINT_LINE;
+
+  ssize_t buff_size = read(in_descr, buff, BUFF_SIZE);
+  PRINT_LINE;
   if (buff_size < 0) 
   {
     perror("Can't read from istream\n");
     throw (Except(__LINE__, __func__));
   }
+
+  PRINT_LINE;
 }
 
-void *read(void *)
+struct CMDArgs
 {
-  int buff_idx = G_monitor.getBuffForRead();
-  read(G_monitor.fifo_buffs_[buff_idx], 0);
+  const int argc;
+  const char * const *argv;
+};
+
+void *read(void *ex_args)
+{
+  if (!ex_args)
+    return nullptr;
+
+  CMDArgs *args = (CMDArgs *)ex_args;
+
+  for (int i = 1; i < args->argc; ++i)
+  {
+    int buff_idx = G_monitor.getBuffForRead();
+    int in_descr = open(args->argv[i], O_ASYNC);
+
+    try
+    {
+      read(G_monitor.fifo_buffs_[buff_idx], in_descr);
+    }
+    catch(Except ex) 
+    {
+      std::cout << ex.what() << '\n';
+    }
+
+  }
 
   return nullptr;
 }
 
-void *write(void *)
+void *write(void *ex_args)
 {
-  int buff_idx = G_monitor.getBuffForWrite();
-  safeWrite(1, G_monitor.fifo_buffs_[buff_idx], BUFF_SIZE);
+  if (!ex_args)
+    return nullptr;
+
+  CMDArgs *args = (CMDArgs *)(ex_args);
+
+  for (int i = 1; i < args->argc; ++i)
+  {
+    int buff_idx = G_monitor.getBuffForWrite();
+    safeWrite(1, G_monitor.fifo_buffs_[buff_idx], BUFF_SIZE);
+  }
 
   return nullptr;
 }
@@ -131,7 +171,7 @@ int Monitor::getBuffForRead()
     pthread_cond_wait(&empty, &mutex);
   
   int free_idx = first_free_;
-  first_free_ = (++first_free_) % buffs_amnt_;
+  first_free_  = (++first_free_) % buffs_amnt_;
 
   pthread_mutex_unlock(&mutex);
 
@@ -146,21 +186,37 @@ int Monitor::getBuffForWrite()
     pthread_cond_wait(&full, &mutex);
 
   int busy_idx = last_busy_;
-  last_busy_ = (G_monitor.first_free_ != last_busy_ + 1) ? (last_busy_ + 1) : -1;
+  last_busy_   = (G_monitor.first_free_ != last_busy_ + 1) ? (last_busy_ + 1) : -1;
 
   pthread_mutex_unlock(&mutex);
 
   return busy_idx;
 }
 
-
-int main()
+int main(const int argc, char * const argv[])
 {
   pthread_t writer,
             reader;
-  
-  pthread_create(&writer, nullptr, write, nullptr);
-  pthread_create(&reader, nullptr, read,  nullptr);
+ 
+  pthread_attr_t write_attr,
+                 read_attr;
+
+  CMDArgs args = {argc, argv};
+
+  if (pthread_create(&writer, nullptr, write, &args))
+  {
+    perror("Creating writer thread error:"); 
+    return 0;
+  }
+  if (pthread_create(&reader, nullptr, read,  &args))
+  {
+    perror("Creating reader thread error:");
+    pthread_cancel(writer);
+    return 0;
+  }
+
+  pthread_join(reader, nullptr);
+  pthread_join(writer, nullptr);
 
   return 0;
 }
