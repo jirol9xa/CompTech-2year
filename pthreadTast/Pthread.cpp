@@ -149,6 +149,10 @@ void *read(void *ex_args)
 
 void *write(void *ex_args)
 {
+  !
+  // Need to lock mutex, while writing to buff or reading from it
+  // same for reader func
+  
   if (!ex_args)
     return nullptr;
 
