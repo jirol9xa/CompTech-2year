@@ -70,7 +70,7 @@ int parseFile(const int in_decr, Cmd_vector *vec)
     Cmd *cmd       = newCmd();
     char *curr_pos = strtok(buff, "|");
 
-    do
+    for (;;)
     {
         parseCmd(cmd, curr_pos);
         pushBack(vec, *cmd);
@@ -79,7 +79,6 @@ int parseFile(const int in_decr, Cmd_vector *vec)
         if (!curr_pos)
             break;
     } 
-    while (1);
 
     free(cmd);
     return 0;
