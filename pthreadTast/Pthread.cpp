@@ -100,7 +100,7 @@ static int safeWrite(int out_descr, const char *buff, const size_t buff_size)
   return 0;
 }
 
-void read(char *buff, int in_descr)
+static void read(char *buff, int in_descr)
 {
   PRINT_LINE;
 
@@ -121,7 +121,7 @@ struct CMDArgs
   const char * const *argv;
 };
 
-void *read(void *ex_args)
+static void *read(void *ex_args)
 {
   if (!ex_args)
     return nullptr;
@@ -147,9 +147,9 @@ void *read(void *ex_args)
   return nullptr;
 }
 
-void *write(void *ex_args)
+static void *write(void *ex_args)
 {
-  !
+  //!
   // Need to lock mutex, while writing to buff or reading from it
   // same for reader func
   
