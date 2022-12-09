@@ -140,7 +140,7 @@ int main(const int argc, char * const argv[])
 
 namespace {
 /// Function, that running all tests and compare results with standart,
-/// also that function getting the input from stdin
+/// also that function getting the input from stdin.
 bool runTesting(pollfd *arr, int &proc_amnt, int *res_arr)
 {
   assert(arr);
@@ -206,6 +206,10 @@ bool runTesting(pollfd *arr, int &proc_amnt, int *res_arr)
   return verifyBytesAmnt(res_arr, proc_amnt, stdin_bytes_amnt);
 }
 
+/// Function for processing read and write with pipe buffs. It is called by 
+/// testing system on each poll event.  
+///
+/// Param buffer uses like rubbish bin, while counting bts amnt in pipe fds[1] 
 int processRevent(pollfd *fd, Buffer &buffer)
 {
   assert(fd);
@@ -257,6 +261,8 @@ int processRevent(pollfd *fd, Buffer &buffer)
   return -1;
 }
 
+/// This function is called in the end of testing. It was made for collecting
+/// data from buffs, that remained after last read action
 void countFinalSize(pollfd *arr, Buffer &trash_buff, int *res_arr, int proc_amnt)
 {
   assert(arr);
@@ -285,6 +291,8 @@ void countFinalSize(pollfd *arr, Buffer &trash_buff, int *res_arr, int proc_amnt
   }
 }
 
+/// Function for comparing result of cats with right answer. Right answer is a
+/// number of bytes, that were read in stdin of parent process
 bool verifyBytesAmnt(int *res_arr, int &proc_amnt, int &stdin_amnt)
 {
   assert(res_arr);

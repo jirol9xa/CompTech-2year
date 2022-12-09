@@ -13,13 +13,12 @@
     if (DEBUG_MODE)           \
       {code;}                 \
   }
-  
-  #define IS_VALID(param) {             \
-  if (DEBUG_MODE && !param)             \
-  {                                     \
-    printf("Invalid " #param "ptr ");   \
-    return -1;                          \
-  }                                     \
-}
+  #define IS_VALID(param) {               \
+    if (DEBUG_MODE && !param)             \
+    {                                     \
+      printf("Invalid " #param "ptr ");   \
+      return -1;                          \
+    }                                     \
+  }
 
 #endif
