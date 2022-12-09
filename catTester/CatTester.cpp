@@ -22,7 +22,7 @@ namespace {
     {code;}                 \
 }
 
-#define DEBUG_MODE 1
+#define DEBUG_MODE 0
 
 const int BUFF_SIZE = 4096;
 const int TIMEOUT   = 10;
@@ -37,7 +37,8 @@ inline void dumpPollStruct(const pollfd *arg)
 {
   std::cout << "PollStruct dump: " << "FileDescr = " << arg->fd << ", events = "
             << arg->events << ", revents = " << arg->revents 
-            << ((arg->revents == POLLIN) ? " (POLLIN)" : " (POLLOUT)") << '\n';
+            << ((arg->revents == POLLIN) ? " (POLLIN -- Can read)" : 
+               " (POLLOUT -- Can write)") << '\n';
 }
 
 void countFinalSize(pollfd *arr, Buffer &trash_buff, int *res_arr, int proc_amnt);
@@ -93,9 +94,11 @@ int main(const int argc, char * const argv[])
         perror("dup2 failed");
         exit(EXIT_FAILURE);
       }
-      close(fds2[0]);
-      close(fds1[1]);
-  
+      close(fds1[0]);   // Don't sure in it
+      close(fds1[1]);   //
+      close(fds2[0]);   //
+      close(fds2[1]);   //
+
       if (execvp(argv[1], argv + 1) == -1)
       {
         perror("execvp failed");
@@ -114,16 +117,21 @@ int main(const int argc, char * const argv[])
   if (pid != 0)
   {
     if (!runTesting(children_arr, proc_amnt, bytes_amnt_arr))
-      SAFE_PRINTF("Test failed\n");
+      print_debug({SAFE_PRINTF("Test failed\n");})
     else 
-      SAFE_PRINTF("Tests passed, great!\n");
-  
+      print_debug({SAFE_PRINTF("Tests passed, great!\n");})
+
     int status;
-    for (int i = 0; i < proc_amnt; ++i)
-      while (wait(&status))
+    for (int i = 0; i < 2 * proc_amnt; i += 2)
+    {
+      close(children_arr[i].fd);
+      close(children_arr[i + 1].fd);
+
+      PRINT_LINE;
+    }
+    while (wait(&status) != -1)
         continue;
   }
-
   delete [] children_arr;
   delete [] bytes_amnt_arr;
 
@@ -156,7 +164,7 @@ bool runTesting(pollfd *arr, int &proc_amnt, int *res_arr)
       exit(EXIT_FAILURE);
     }
     else if (poll_status == 0)
-      SAFE_PRINTF("poll timeout ended\n");
+      print_debug({SAFE_PRINTF("poll timeout ended\n");})
    
     print_debug(SAFE_PRINTF("poll status = %d\n", poll_status););
 
@@ -203,7 +211,7 @@ int processRevent(pollfd *fd, Buffer &buffer)
   assert(fd);
  
   PRINT_LINE;
-  dumpPollStruct(fd);
+  //dumpPollStruct(fd);
 
   int size_temp = 0;
 
@@ -261,7 +269,7 @@ void countFinalSize(pollfd *arr, Buffer &trash_buff, int *res_arr, int proc_amnt
       exit(EXIT_FAILURE);
     }
   else if (poll_status == 0)
-    SAFE_PRINTF("poll timeout ended\n");
+    print_debug({SAFE_PRINTF("poll timeout ended\n");})
   
   for (int i = 0; i < proc_amnt * 2; ++i)
   {
@@ -272,7 +280,7 @@ void countFinalSize(pollfd *arr, Buffer &trash_buff, int *res_arr, int proc_amnt
       read_bytes = processRevent(&arr[i], trash_buff);
       res_arr[i / 2] += read_bytes;
 
-      SAFE_PRINTF("finally read %d bytes\n", read_bytes);
+      print_debug({SAFE_PRINTF("finally read %d bytes\n", read_bytes);})
     }
   }
 }

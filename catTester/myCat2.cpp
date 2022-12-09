@@ -6,8 +6,14 @@
 #include <iostream>
 
 const int BUFF_SIZE = 4096;
+#define DEBUG_MODE 0
 
-#define PRINT_LINE fprintf(stderr, "[%s:%d]\n", __func__, __LINE__);
+
+#define PRINT_LINE                                      \
+{                                                       \
+  if (DEBUG_MODE)                                       \
+    fprintf(stderr, "[%s:%d]\n", __func__, __LINE__);   \
+}
 
 #define IS_VALID(param) {                   \
     if (!param)                             \
@@ -34,7 +40,6 @@ static int safeWrite(int out_descr, const char *buff, const size_t buff_size)
     PRINT_LINE;
     while(wrtn != buff_size)
     {
-        fprintf(stderr, "wrtn to buff in cat = %d\n", wrtn);
         wrtn += write(out_descr, buff + wrtn, buff_size - wrtn);
         PRINT_LINE;
     }
@@ -54,11 +59,10 @@ static int myCat(const int in_descr, const int out_descr)
     char buff[BUFF_SIZE];
     int  buff_size = BUFF_SIZE;
 
-    while (buff_size == BUFF_SIZE)
+    while (buff_size > 0)
     {
         PRINT_LINE;
         buff_size = read(in_descr, buff, BUFF_SIZE);
-        fprintf(stderr, "read to buff in myCat = %d\n", buff_size);
 
         if (buff_size < 0)
         {
@@ -74,32 +78,30 @@ static int myCat(const int in_descr, const int out_descr)
 
         PRINT_LINE;
     }
-    
-    close(in_descr);
+   
+    PRINT_LINE;
+
     return 0;
 }
 
 
 int main(const int argc, const char *argv[])
 {
-    int in_descr = 0;
+    int in_descr  = 0,
+        out_descr = 1;
 
     if (argc < 2)
     {
-        myCat(in_descr, 1);
+        myCat(in_descr, out_descr);
         return 0;
     }
-
-    //for (int i = 1; i < argc; ++i)
-    //{   
-        //in_descr = open(argv[i], O_ASYNC);
-
-        if (myCat(in_descr, 1))
-        {
-            printf("Error in myCat\n");
-     //       break;
-        }
-    //}
+    if (myCat(in_descr, out_descr))
+    {
+      printf("Error in myCat\n");
+    }
     
+    close(in_descr);
+    close(out_descr);
+
     return 0;
 }
