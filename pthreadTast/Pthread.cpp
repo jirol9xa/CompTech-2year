@@ -8,7 +8,7 @@
 #include <iostream>
 #include <cassert>
 
-#define DEBUG_MODE 0
+#define DEBUG_MODE 1
 #include "../debugLib/deb_macro.h"
 
 const int BUFF_SIZE = 4096;
@@ -39,6 +39,8 @@ class Monitor
         head_ = 0,
         tail_ = 0,
         free_space_;
+    
+    bool is_done_;
 
   public:
     char **fifo_buffs_;
@@ -62,6 +64,8 @@ class Monitor
       }
     }
 
+    bool setDone() { return is_done_ = true; }
+
     int getBuffForRead();
     int getBuffForWrite();
 
@@ -69,6 +73,7 @@ class Monitor
     void writeDone();
 
     bool is_empty() { return free_space_ == buffs_amnt_; }
+    bool is_done() { return is_done_; }
 
     pthread_mutex_t *getMutexPtr() { return &mutex; }
 
@@ -168,9 +173,14 @@ void *read(void *ex_args)
         }
       }
 
+    if (syms_read == 0)
+      G_monitor.setDone();
+
     G_monitor.readDone();
   
   } while (syms_read > 0);
+
+  
 
   return nullptr;
 }
@@ -184,9 +194,14 @@ void *write(void *ex_args)
 
   CMDArgs *args = (CMDArgs *)(ex_args);
  
-  do {
+  for (;;) {
     int buff_idx = G_monitor.getBuffForWrite();
-  
+    
+    if (buff_idx == -1)
+    {
+      G_monitor.writeDone();
+      return nullptr;
+    }
     PRINT_LINE;
 
     if (args->argc < 2)
@@ -200,8 +215,7 @@ void *write(void *ex_args)
         safeWrite(1, G_monitor.fifo_buffs_[buff_idx], BUFF_SIZE);
   
     G_monitor.writeDone();
-  
-  } while (!G_monitor.is_empty());
+  }
 
   return nullptr;
 }
@@ -223,8 +237,6 @@ int Monitor::getBuffForRead()
     pthread_cond_wait(&full, &mutex);
   }
   
-  
-  
   int idx = tail_;
   tail_ = ++tail_ % buffs_amnt_;
   free_space_--;
@@ -241,6 +253,9 @@ int Monitor::getBuffForWrite()
   PRINT_LINE;
  
   pthread_mutex_lock(&mutex);
+  
+  if (is_done_)
+    return -1;
 
   if (free_space_ == buffs_amnt_)
   {
