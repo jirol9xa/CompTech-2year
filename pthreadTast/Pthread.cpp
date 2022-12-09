@@ -6,18 +6,12 @@
 #include <unistd.h>
 #include <exception>
 #include <iostream>
+#include <cassert>
+
+#define DEBUG_MODE 1
+#include "../debugLib/deb_macro.h"
 
 const int BUFF_SIZE = 4096;
-
-#define PRINT_LINE fprintf(stderr, "[%s:%d]\n", __func__, __LINE__);
-
-#define IS_VALID(param) {                   \
-    if (!param)                             \
-    {                                       \
-        printf("Invalid " #param "ptr ");   \
-        return -1;                          \
-    }                                       \
-}
 
 class Except : public std::exception
 {
@@ -37,20 +31,20 @@ class Except : public std::exception
 
 class Monitor
 {
-private:
-  pthread_cond_t empty, full;
-  pthread_mutex_t mutex;
+  private:
+    pthread_cond_t empty, full;
+    pthread_mutex_t mutex;
 
-  int buffs_amnt_, 
-      first_free_,
-      last_busy_;
+    int buffs_amnt_, 
+        first_free_,
+        last_busy_;
 
-public:
-  char **fifo_buffs_;
+  public:
+    char **fifo_buffs_;
 
-public:
-  Monitor(int buff_amnt = 16) : buffs_amnt_(buff_amnt), first_free_(0),
-                                last_busy_(-1)
+  public:
+    Monitor(int buff_amnt = 16) : buffs_amnt_(buff_amnt), first_free_(0),
+    last_busy_(-1)
   {
     try { fifo_buffs_ = new char*[buff_amnt]; }
     catch (std::bad_alloc) {
@@ -63,109 +57,118 @@ public:
       catch (std::bad_alloc){
         for (int j = 0; j < i - 1; j++)
           delete [] fifo_buffs_[j];
-        
+
         throw(Except(__LINE__, __func__));
       }
     }
   }
 
-  int getBuffForRead();
-  int getBuffForWrite();
+    int getBuffForRead();
+    int getBuffForWrite();
 
-  pthread_mutex_t *getMutexPtr() { return &mutex; }
+    pthread_mutex_t *getMutexPtr() { return &mutex; }
 
-  void markBuffAsFree() {}
+    void markBuffAsFree() {}
 
-  ~Monitor() 
-  {
-    for (int i = 0; i < buffs_amnt_; ++i) {
-      delete [] fifo_buffs_[i];
+    ~Monitor() 
+    {
+      for (int i = 0; i < buffs_amnt_; ++i) {
+        delete [] fifo_buffs_[i];
+      }
+
+      delete [] fifo_buffs_;
     }
-
-    delete [] fifo_buffs_;
-  }
 } G_monitor;
 
-static int safeWrite(int out_descr, const char *buff, const size_t buff_size)
-{
-  PRINT_LINE;
-
-  IS_VALID(buff);
-
-  int wrtn = 0;
-
-  while(wrtn != buff_size)
-    wrtn += write(out_descr, buff + wrtn, buff_size - wrtn);
-
-  return 0;
-}
-
-static void read(char *buff, int in_descr)
-{
-  PRINT_LINE;
-
-  ssize_t buff_size = read(in_descr, buff, BUFF_SIZE);
-  PRINT_LINE;
-  if (buff_size < 0) 
+namespace {
+  int safeWrite(int out_descr, const char *buff, const size_t buff_size)
   {
-    perror("Can't read from istream\n");
-    throw (Except(__LINE__, __func__));
+    PRINT_LINE;
+
+    IS_VALID(buff);
+
+    int wrtn = 0;
+
+    while(wrtn != buff_size)
+      wrtn += write(out_descr, buff + wrtn, buff_size - wrtn);
+
+    return 0;
   }
 
-  PRINT_LINE;
-}
-
-struct CMDArgs
-{
-  const int argc;
-  const char * const *argv;
-};
-
-static void *read(void *ex_args)
-{
-  if (!ex_args)
-    return nullptr;
-
-  CMDArgs *args = (CMDArgs *)ex_args;
-
-  for (int i = 1; i < args->argc; ++i)
+  void read(char *buff, int in_descr)
   {
-    int buff_idx = G_monitor.getBuffForRead();
-    int in_descr = open(args->argv[i], O_ASYNC);
-
-    try
+    PRINT_LINE;
+    
+    ssize_t buff_size = ::read(in_descr, buff, BUFF_SIZE);
+    while (buff_size > 0)
     {
-      read(G_monitor.fifo_buffs_[buff_idx], in_descr);
-    }
-    catch(Except ex) 
-    {
-      std::cout << ex.what() << '\n';
+      
     }
 
+    PRINT_LINE;
+    if (buff_size < 0) 
+    {
+      perror("Can't read from istream\n");
+      throw (Except(__LINE__, __func__));
+    }
+
+    PRINT_LINE;
   }
 
-  return nullptr;
-}
-
-static void *write(void *ex_args)
-{
-  //!
-  // Need to lock mutex, while writing to buff or reading from it
-  // same for reader func
-  
-  if (!ex_args)
-    return nullptr;
-
-  CMDArgs *args = (CMDArgs *)(ex_args);
-
-  for (int i = 1; i < args->argc; ++i)
+  struct CMDArgs
   {
-    int buff_idx = G_monitor.getBuffForWrite();
-    safeWrite(1, G_monitor.fifo_buffs_[buff_idx], BUFF_SIZE);
+    const int argc;
+    const char * const *argv;
+  };
+
+  void *read(void *ex_args)
+  {
+    assert(ex_args);
+
+    CMDArgs *args = (CMDArgs *)ex_args;
+
+    for (int i = 1; i < args->argc; ++i)
+    {
+      int buff_idx = G_monitor.getBuffForRead();
+      int in_descr = open(args->argv[i], O_ASYNC);
+
+      try
+      {
+        // FIXME: change to custom in_descr
+        //read(G_monitor.fifo_buffs_[buff_idx], in_descr);
+      
+        
+        read(G_monitor.fifo_buffs_[buff_idx], 0);
+      }
+      catch(Except ex) 
+      {
+        std::cout << ex.what() << '\n';
+      }
+
+    }
+
+    return nullptr;
   }
 
-  return nullptr;
-}
+  void *write(void *ex_args)
+  {
+    //!
+    // Need to lock mutex, while writing to buff or reading from it
+    // same for reader func
+    
+    assert(ex_args);
+
+    CMDArgs *args = (CMDArgs *)(ex_args);
+
+    for (int i = 1; i < args->argc; ++i)
+    {
+      int buff_idx = G_monitor.getBuffForWrite();
+      safeWrite(1, G_monitor.fifo_buffs_[buff_idx], BUFF_SIZE);
+    }
+
+    return nullptr;
+  }
+} // anonymous namespace
 
 int Monitor::getBuffForRead()
 {
@@ -173,7 +176,7 @@ int Monitor::getBuffForRead()
 
   if (first_free_ >= buffs_amnt_)
     pthread_cond_wait(&empty, &mutex);
-  
+
   int free_idx = first_free_;
   first_free_  = (++first_free_) % buffs_amnt_;
 
@@ -201,9 +204,6 @@ int main(const int argc, char * const argv[])
 {
   pthread_t writer,
             reader;
- 
-  pthread_attr_t write_attr,
-                 read_attr;
 
   CMDArgs args = {argc, argv};
 
