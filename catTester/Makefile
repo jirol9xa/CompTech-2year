@@ -4,7 +4,7 @@ CFLAGS = -O3 -Wall -Wextra -Wpedantic -fsanitize=address,leak,undefined -g
 
 all: myCat.o tester.o
 	$(CC) $(CFLAGS) tester.o -o test 
-clean:
+clear:
 	rm -rf *.o
 
 myCat.o: myCat2.cpp
