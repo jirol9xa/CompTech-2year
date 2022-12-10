@@ -26,9 +26,7 @@ private:
   DIR *dir_;
   std::string path_, rel_name_;
   std::vector<dirent *> files_;
-  std::unordered_map<DIR *, std::vector<std::string>> hard_links_;
-  int links_amnt = 0;
-  int printed_links = 0;
+  std::unordered_map<ino64_t, std::vector<std::string>> hard_links_;
   /// Class for parcing and storing cmd line args
 
 public:
@@ -37,61 +35,37 @@ public:
   Directory(DIR *dir, const Directory &old_dir, const char *rel_name)
       : dir_(dir), rel_name_(rel_name), files_() {
     path_ = old_dir.path_ + '/' + rel_name_;
+
+    print_debug({ SAFE_PRINTF("New path = %s\n", path_.c_str()); });
   }
 
-  ~Directory() { std::cout << "\n\n"; }
-  /*
-  for (const auto &link : hard_links_)
-  {
-    rewinddir(link.first);
-    dirent *curr_dir = readdir(link.first);
-    if (curr_dir == nullptr)
-    {
-      PRINT_LINE;
-      continue;
+  ~Directory() {
+
+    bool is_print_smth = false;
+    for (const auto &link : hard_links_) {
+      if (link.second.size() < 2)
+        continue;
+
+      for (const auto &hard_links : link.second) {
+        is_print_smth = true;
+        std::cout << hard_links << '\n';
+      }
     }
 
-    struct stat dir_info;
-    if (fstatat(dirfd(link.first), curr_dir->d_name, &dir_info, 0) == -1)
-    {
-      perror("fstatat failed");
-      exit(exit_failure);
-    }
-
-    int links_amnt = 0;
-    for (const auto &name : link.second)
-    {
-      links_amnt++;
-      std::cout << name << '\n';
-    }
-
-    if (links_amnt != dir_info.st_nlink)
-      std::cout << "[...incomplete...]\n";
-
-    std::cout << "\n\n";
+    if (is_print_smth)
+      std::cout << "\n\n";
   }
-
-}*/
 
   /// Function for dislaying whole directory
   void traverseDir() {
     assert(dir_);
 
+    PRINT_LINE;
+
     // We need to get list of all files in dir
     rewinddir(dir_);
-    while (dirent *dir = readdir(dir_)) {
-      if (links_amnt == 0) {
-        struct stat dir_info;
-        if (fstatat(dirfd(dir_), dir->d_name, &dir_info, 0) == -1) {
-          perror("fstatat failed");
-          exit(EXIT_FAILURE);
-        }
-
-        links_amnt = dir_info.st_nlink;
-      }
-
+    while (dirent *dir = readdir(dir_))
       files_.push_back(dir);
-    }
 
     if (files_.size() == 0)
       return;
@@ -121,14 +95,17 @@ private:
   void visitDirent(const dirent *dir) {
     assert(dir);
 
-    // direntDump(dir);
+    PRINT_LINE;
+    print_debug({ SAFE_PRINTF("dir name = %s\n", dir->d_name); });
 
     if (dir->d_type == DT_DIR) {
+      PRINT_LINE;
+
       std::string rel_name = dir->d_name;
       if (rel_name == std::string(".") || rel_name == std::string(".."))
         return;
 
-      DIR *directory = opendir(rel_name.c_str());
+      DIR *directory = opendir((path_ + '/' + rel_name).c_str());
       if (directory == nullptr)
         return;
 
@@ -139,28 +116,31 @@ private:
       return;
     }
 
-    struct stat file_info;
-    if (fstatat(dirfd(dir_), dir->d_name, &file_info, 0) == -1) {
-      perror("fstatat failed");
-      exit(EXIT_FAILURE);
-    }
+    /*print_debug({
+      SAFE_PRINTF("I-node number = %ld, path = %s\n", dir->d_ino,
+                  (path_ + '/' + dir->d_name).c_str());
+    });*/
 
-    printed_links++;
-    std::cout << path_ + '/' + dir->d_name << '\n';
-
-    // hard_links_[dir_].push_back(path_ + '/' + dir->d_name);
+    hard_links_[dir->d_ino].push_back(path_ + '/' + dir->d_name);
   }
 };
 } // anonymous namespace
 
 int main(const int argc, char *const argv[]) {
-  DIR *directory = opendir(".");
+  if (argc < 2) {
+    std::cout << "Write in correct format <path>\n";
+    exit(EXIT_FAILURE);
+  }
+
+  DIR *directory = opendir(argv[1]);
   if (directory == nullptr) {
     perror("opendir failed");
     exit(EXIT_FAILURE);
   }
 
-  Directory dir(directory, ".");
+  PRINT_LINE;
+
+  Directory dir(directory, argv[1]);
   dir.traverseDir();
 
   closedir(directory);
