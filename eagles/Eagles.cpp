@@ -32,7 +32,7 @@ int main(const int argc, char *const argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  off_t buff_len = atoi(argv[2]);
+  off_t child_amnt = atoi(argv[2]);
   bool need_allocate = false;
 
   SyncData data;
@@ -48,13 +48,13 @@ int main(const int argc, char *const argv[]) {
   }
 
   if (need_allocate) {
-    if (ftruncate(data.shm, buff_len) == -1) {
+    if (ftruncate(data.shm, sizeof(int)) == -1) {
       perror("ftruncate error");
       exit(EXIT_FAILURE);
     }
   }
 
-  data.buff = (char *)mmap(nullptr, buff_len, PROT_WRITE | PROT_READ,
+  data.buff = (char *)mmap(nullptr, sizeof(int), PROT_WRITE | PROT_READ,
                            MAP_SHARED, data.shm, 0);
   if (data.buff == (void *)-1) {
     perror("mmap failed");
@@ -72,7 +72,7 @@ int main(const int argc, char *const argv[]) {
   }
 
   int pid;
-  for (int i = 0; i < buff_len; ++i) {
+  for (int i = 0; i < child_amnt; ++i) {
     pid = fork();
 
     if (pid == 0)
@@ -86,7 +86,7 @@ int main(const int argc, char *const argv[]) {
     parentProc(data);
 
   if (pid != 0) {
-    munmap(data.buff, buff_len);
+    munmap(data.buff, child_amnt);
     close(data.shm);
     shm_unlink(argv[1]);
   }
@@ -94,6 +94,11 @@ int main(const int argc, char *const argv[]) {
   return 0;
 }
 
-void parentProc(SyncData data) {}
+void parentProc(SyncData data) {
+  for (;;)
+  {
+    data.is_empty
+  }
+}
 
 void childProc(SyncData data) {}
