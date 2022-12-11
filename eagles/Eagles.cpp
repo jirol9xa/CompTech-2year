@@ -44,9 +44,11 @@ void childProc(SyncData sync_data);
 } // anonymous namespace
 
 int main(const int argc, char *const argv[]) {
-  if (argc < 3) {
-    std::cout << "Wrong format, enter <any-key-word>"
-              << "<amnt of food by mother each time>\n";
+  if (argc < 6) {
+    std::cout << "Wrong format, enter <any-key-word> "
+              << "<amnt of food by mother each time> "
+              << "<sem_name>" << "<is_full_sem_name> "
+              << "is_empty_sem_name" << '\n';
     exit(EXIT_FAILURE);
   }
 
@@ -57,7 +59,7 @@ int main(const int argc, char *const argv[]) {
 
   data.shm = shm_open(argv[1], O_RDWR, 0777);
   if (data.shm == -1) {
-    if ((data.shm = shm_open(argv[1], O_CREAT | O_RDWR, 0777)) == -1) {
+    if ((data.shm = shm_open(argv[1], O_CREAT | O_RDWR | O_EXCL, 0777)) == -1) {
       perror("shm_open error");
       exit(EXIT_FAILURE);
     }
@@ -79,21 +81,18 @@ int main(const int argc, char *const argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  if ((data.sem = sem_open("/sem1", O_CREAT, 0777, 1)) == SEM_FAILED) {
+  if ((data.sem = sem_open(argv[3], O_CREAT | O_EXCL, 0777, 0)) == SEM_FAILED) {
     perror("sem_open failed");
     exit(EXIT_FAILURE);
   }
-  if ((data.is_full = sem_open("/isfull1", O_CREAT, 0777, child_amnt)) == SEM_FAILED) {
+  if ((data.is_full = sem_open(argv[4], O_CREAT | O_EXCL, 0777, 0)) == SEM_FAILED) {
     perror("sem_open failed");
     exit(EXIT_FAILURE);
   }
-  if ((data.is_empty = sem_open("/isempty1", O_CREAT, 0777, 0)) == SEM_FAILED) {
+  if ((data.is_empty = sem_open(argv[5], O_CREAT | O_EXCL, 0777, 0)) == SEM_FAILED) {
     perror("sem_open failed");
     exit(EXIT_FAILURE); 
   }
-
-  // Initializing data
-  *data.food_amnt = child_amnt;
 
   int pid;
   for (int i = 0; i < child_amnt; ++i) {
@@ -105,7 +104,18 @@ int main(const int argc, char *const argv[]) {
 
   // Now we need to run all processes
   if (pid == 0)
+  {
+    data.shm = shm_open(argv[1], O_RDWR, 0777);
+    data.food_amnt = (int *)mmap(nullptr, sizeof(int), PROT_WRITE | PROT_READ,
+                           MAP_SHARED, data.shm, 0);
+    if (data.food_amnt == (void *)-1) 
+    {
+      perror("mmap failed");
+      exit(EXIT_FAILURE);
+    }
+    
     childProc(data);
+  }
   else
     parentProc(data, atoi(argv[2]));
 
@@ -121,7 +131,11 @@ int main(const int argc, char *const argv[]) {
 namespace {
 void parentProc(SyncData data, int food_each_time) 
 {
-  POST_SEM(data.is_full);
+  *data.food_amnt = food_each_time; 
+  for (int i = 0; i < food_each_time; ++i) 
+  {
+    POST_SEM(data.is_full);
+  }
   POST_SEM(data.sem);
 
   for (;;)
@@ -131,6 +145,8 @@ void parentProc(SyncData data, int food_each_time)
 
     *(data.food_amnt) = food_each_time; 
     std::cout << "Mother bring a food\n";
+
+    sleep(2);
 
     POST_SEM(data.sem);
  
@@ -145,12 +161,16 @@ void childProc(SyncData data)
   {
     WAIT_SEM(data.is_full);
     WAIT_SEM(data.sem);
-
-    *(data.food_amnt)--;
-    std::cout << "Child ate a food\n";
   
+    int food_amnt = --*data.food_amnt;
+    std::cout << "Child ate a food, food remained " << food_amnt << '\n';
+ 
+    sleep(2);
+
     POST_SEM(data.sem);
-    POST_SEM(data.is_empty)
+
+    if (food_amnt <= 0)
+      POST_SEM(data.is_empty)
   }
 }
 } // anonymous namespace
